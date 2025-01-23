@@ -106,7 +106,7 @@ def service_connection(key: selectors.SelectorKey, mask):
 
 sel = selectors.DefaultSelector()
 
-host, port = '127.0.0.1', int(sys.argv[1])
+host, port = sys.argv[1], int(sys.argv[2])
 lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 lsock.bind((host, port))
 lsock.listen()
