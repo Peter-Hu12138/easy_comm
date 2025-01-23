@@ -2,7 +2,7 @@ import shlex
 import selectors
 import tkinter
 
-def cmd(line: str, sk: selectors.SelectorKey, root: tkinter.Tk, display_message: callable) -> None:
+def cmd(line: str, sk: selectors.SelectorKey, window: tkinter.Toplevel, display_message: callable) -> None:
     """
     Commands:
     ---------
@@ -23,5 +23,4 @@ def cmd(line: str, sk: selectors.SelectorKey, root: tkinter.Tk, display_message:
         display_message(cmd.__doc__)
     elif args[0] == "changename":
         sk.data.name = args[1]
-        root.title(f"Chat Client -- welcome for using, {sk.data.name}")
-        
+        window.title(f"Chat Client -- welcome for using, {sk.data.name} -- room id {window.room_id}")
