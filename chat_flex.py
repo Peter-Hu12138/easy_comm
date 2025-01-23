@@ -192,7 +192,7 @@ class Manager():
         self.root.after(20, self.check_socket)
 
 
-host, port, name = '127.0.0.1', sys.argv[1], sys.argv[2]
+host, port, name = sys.argv[1], sys.argv[2], sys.argv[3]
 print(host, port, name)
 
 server_addr = (host, int(port))
