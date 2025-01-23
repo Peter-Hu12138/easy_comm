@@ -9,14 +9,14 @@ import socket
 import selectors
 import types
 
-rooms = {}
+rooms: dict[int, int] = {}
 STX = b'\x02'  # Start of Text
 ETX = b'\x03'  # End of Text
 
 def disconnect(sock, data):
     print(f"closing connection to {data.addr}")
-    rooms.pop(data.id)
-    print(f"released id {data.id}")
+    # rooms.pop(data.id) # TODO: handle room_id release
+    # print(f"released id {data.id}")
     sel.unregister(sock)
     sock.close()
 
@@ -27,7 +27,7 @@ def intial_accept(sock: socket.socket):
     data = types.SimpleNamespace(addr=addr, inb=b"", outb=b"", confirmed=False, succ=False, id=-1) # hold data included with a simple name space object
     events = selectors.EVENT_READ | selectors.EVENT_WRITE # '|' stands for bitwise or, this is creating a mask for both read and write
     sel.register(conn, events, data=data)
-            
+
 def confirm_accept(key: selectors.SelectorKey, mask):
     global rooms
     sock: socket.socket = key.fileobj
@@ -37,22 +37,27 @@ def confirm_accept(key: selectors.SelectorKey, mask):
         if recv_data:
             data.inb += recv_data
             if recv_data.endswith(ETX):
-                id = int(data.inb.split(",")[1])
+                id = int(data.inb.split(b",")[1])
+                password = int(data.inb.split(b",")[2])
+                print(f"confirmation message compelete, {data.inb}")
                 if data.inb.startswith(b"create"):
                     if id in rooms:
-                        data.outb += b"failed, id exists, please enter another id" # fail, id already exists
+                        data.outb += STX + b"failed, id exists, please enter another id" # fail, id already exists
                     else:
-                        data.outb += b"successful, room created"
+                        data.outb += STX + b"successful, room created"
                         data.succ = True
                         data.id = id
-                        rooms[id] = b"1234" # creates room
-                elif data.inb.join("join"):
+                        rooms[id] = password # creates room
+                elif data.inb.startswith(b"join"):
                     if id in rooms:
-                        data.outb += b"successful, joining"
-                        data.succ = True
-                        data.id = id
+                        if rooms[id] == password:
+                            data.outb += STX + b"successful, joining"
+                            data.succ = True
+                            data.id = id
+                        else:
+                            data.outb += STX + b"failed, wrong password"
                     else:
-                        data.outb += b"failed, id exists, no room exists, must create such room first"
+                        data.outb += STX + b"failed, no room exists, must create such room first"
                 else:
                     pass
         else:
@@ -74,6 +79,9 @@ def confirm_accept(key: selectors.SelectorKey, mask):
                     disconnect(sock, data)
 
 def service_connection(key: selectors.SelectorKey, mask):
+    """
+    Used to service a confirmed (validated into a room) connection
+    """
     sock = key.fileobj
     data = key.data
 
@@ -84,13 +92,11 @@ def service_connection(key: selectors.SelectorKey, mask):
             curr_conns = dict(sel.get_map())
             for fd in curr_conns:
                 sk = curr_conns[fd]
-                if sk.data is not None and fd != key.fileobj.fileno() and sk.data.id == data.id: 
+                if sk.data is not None and fd != key.fileobj.fileno() and sk.data.id == data.id:
                     # make sure it is not the listenning socket and it is not the socket we receive data from
                     sk.data.outb += recv_data
         else:
-            print(f"closing connection to {data.addr}")
-            sel.unregister(sock)
-            sock.close()
+            disconnect(sock, data)
     if mask & selectors.EVENT_WRITE:
         if data.outb:
             print(f"echoing {data.outb!r} to {data.addr}")
