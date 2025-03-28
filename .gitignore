@@ -1,3 +1,6 @@
 oop_experi.py
 gui_experi.py
 .idea
+.DS_Store
+__MACOSX
+__pycache__
