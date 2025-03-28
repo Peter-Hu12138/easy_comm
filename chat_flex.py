@@ -101,7 +101,6 @@ class Manager():
         self.server_addr = (host, int(port))
         self.name = name
         self.sel = selectors.DefaultSelector()
-        # self.sel.register(socket.socket(), 1) # add a useless socket to prevent sel.select() error
         self.chat_windows = set()
         self.root = tk.Tk()
 
@@ -191,17 +190,17 @@ class Manager():
                     key.data.window.service_connection(key, mask)
         self.root.after(20, self.check_socket)
 
+if __name__ == "__main__":
+    host, port, name = sys.argv[1], sys.argv[2], sys.argv[3]
+    print(host, port, name)
 
-host, port, name = sys.argv[1], sys.argv[2], sys.argv[3]
-print(host, port, name)
+    server_addr = (host, int(port))
 
-server_addr = (host, int(port))
+    manager = Manager(host=host, port=port, name=name)
 
-manager = Manager(host=host, port=port, name=name)
-
-try:
-    manager.start()
-except KeyboardInterrupt:
-    print("ctrl+c detected exiting")
-finally:
-    manager.quit()
+    try:
+        manager.start()
+    except KeyboardInterrupt:
+        print("ctrl+c detected exiting")
+    finally:
+        manager.quit()
