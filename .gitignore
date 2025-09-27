@@ -4,3 +4,4 @@ gui_experi.py
 .DS_Store
 __MACOSX
 __pycache__
+.venv

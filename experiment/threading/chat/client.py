@@ -3,7 +3,7 @@ ETX = b'\x03'  # End of Text
 
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client_socket.connect(("localhost", 8000))
-to_send = (input("Input what will be echoed back:")).encode("utf-8") + ETX
+to_send = int.to_bytes(4) + (input("Input what will be echoed back:")).encode("utf-8") + ETX
 read_buffer = b''
 while True:
     readable, writable, _ = select.select([client_socket], [client_socket], [])
@@ -19,5 +19,4 @@ while True:
     else:
         print(read_buffer.decode("utf-8"), end="")
         read_buffer = b""
-        to_send = input("Input what will be echoed back:").encode("utf-8") + ETX
-
+        to_send = int.to_bytes(4) + input("Input what will be echoed back:").encode("utf-8") + ETX
