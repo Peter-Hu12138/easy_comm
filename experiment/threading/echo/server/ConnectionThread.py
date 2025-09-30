@@ -1,4 +1,5 @@
 import threading, socket, select
+ETX = b'\x03'  # End of Text
 
 class ConnectionThread(threading.Thread):
     sock: socket.socket

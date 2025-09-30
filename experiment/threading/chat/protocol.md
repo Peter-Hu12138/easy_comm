@@ -22,11 +22,12 @@ This byte is reserved to indicate meta data about this message; right now, here 
 |DH public key from main chat process|2|
 |DH public key from room host|3|
 |DH public key from room attendents|4|
-|shared AES secrets sent over DH exchanged key|4|
-|normal message over AES|5| 
-|room build request|6|
-|room list request|7|
+|shared AES secrets sent over DH exchanged key|5|
+|normal message over AES|6|
+|room build request|7|
+|room list request|8|
 
+0: type_byte + room_name + ',' + password.;
 5: what follows the first byte is a comma delimited string name for chat room name (unauth messages will be ignored)
 6: has additional info whether to amke room public thru room list request
 
