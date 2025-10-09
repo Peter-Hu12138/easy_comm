@@ -1,0 +1,11 @@
+digraph "packages" {
+rankdir=BT
+charset="utf-8"
+"chat.server" [color="black", label=<chat.server>, shape="box", style="solid"];
+"chat.server.connection" [color="black", label=<chat.server.connection>, shape="box", style="solid"];
+"chat.server.manager" [color="black", label=<chat.server.manager>, shape="box", style="solid"];
+"chat.server.message" [color="black", label=<chat.server.message>, shape="box", style="solid"];
+"chat.server.message_dispatcher" [color="black", label=<chat.server.message_dispatcher>, shape="box", style="solid"];
+"chat.server.message_dispenser" [color="black", label=<chat.server.message_dispenser>, shape="box", style="solid"];
+"chat.server.message_sender" [color="black", label=<chat.server.message_sender>, shape="box", style="solid"];
+}
