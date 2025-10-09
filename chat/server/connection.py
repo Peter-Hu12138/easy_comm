@@ -40,6 +40,8 @@ class ConnectionThread(threading.Thread):
     addr: tuple[str, int]
     sock: socket.socket
 
+    TLS_secret: bytes
+
     message_forward_queue: queue.Queue[message.Message]
     rooms: dict[str, ChatRoom]
     manager_queue: queue.Queue[message.Message]
@@ -57,6 +59,7 @@ class ConnectionThread(threading.Thread):
         self.current_message_built = None
         self.receive_buffer = b''
         self.sender = message_sender.MessageSender()
+        self.TLS_secret = b''
 
     def process_queue(self):
         if not self.message_forward_queue.empty():
@@ -75,7 +78,7 @@ class ConnectionThread(threading.Thread):
         self.receive_buffer += chunk
         idx = self.receive_buffer.find(ETX)
         print(f"Receiving bytes: {chunk} from {self.addr}")
-
+        # TODO: handle server/ client comm thru encryption and decryption
         if idx != -1 and self.current_message_built is None:
             self.current_message_built = message.Message(self.receive_buffer[:idx + 1], self.addr)
             self.receive_buffer = self.receive_buffer[idx + 1:]

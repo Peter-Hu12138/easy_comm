@@ -19,4 +19,4 @@ while True:
     else:
         print(read_buffer.decode("utf-8"), end="")
         read_buffer = b""
-        to_send = int.to_bytes(4) + "hi,".encode() + input("Input what will be echoed back:").encode("utf-8") + ETX
+        to_send = int.to_bytes(6) + "hi,".encode() + input("Input what will be echoed back:").encode("utf-8") + ETX

@@ -18,18 +18,17 @@ This byte is reserved to indicate meta data about this message; right now, here 
 | type | byte |
 |------|------|
 |room login request |0|
-|DH public key from client|1|
-|DH public key from main chat process|2|
-|DH public key from room host|3|
-|DH public key from room attendents|4|
+|room build request|1|
+|room list request|2|
+|DH public key from room host (auth and forwarding to attendent)|3|
+|DH public key from room attendents (auth and forwarding to room host)|4|
 |shared AES secrets sent over DH exchanged key|5|
-|normal message over AES|6|
-|room build request|7|
-|room list request|8|
+|normal chat room message (end to end encrypted, forwarding is all one needs) |6|
+|TLS reserved|7|
 
 0: type_byte + room_name + ',' + password.;
-5: what follows the first byte is a comma delimited string name for chat room name (unauth messages will be ignored)
-6: has additional info whether to amke room public thru room list request
+1: has additional info whether to amke room public thru room list request
+6: what follows the first byte is a comma delimited string name for chat room name (unauth messages will be ignored)
 
 
 ## Auth

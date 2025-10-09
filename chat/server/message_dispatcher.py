@@ -23,7 +23,9 @@ class MessageDispatcher:
     def dispatch(self, m: message.Message) -> message.Message:
         """Decode the raw message and dispatch to it to the right place. """
         match m.type_byte:
-            case 4:
+            case 0:
+                m = message.Message00_Login(m.to_bytes(), m.from_addr)
+            case 6:
                 m = message.Message04_Chat(m.to_bytes(), m.from_addr, )
             case _:
                 print(f"unexpected manager request {m}")

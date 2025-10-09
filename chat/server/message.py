@@ -59,3 +59,8 @@ class Message04_Chat(Message):
     
     def forward(self, handler: message_sender.MessageSender):
         handler.forward_chat(self)
+
+
+class Message00_Login(Message):
+    room_name: str | None
+    

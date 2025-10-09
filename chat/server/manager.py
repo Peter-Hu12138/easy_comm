@@ -6,6 +6,7 @@ import traceback
 class Manager:
     conn_threads_lock: threading.Lock
     conn_threads: dict[tuple[str, int], connection.ConnectionThread]
+    conn_secrets: dict[tuple[str, int], str]
     rooms: dict[str, connection.ChatRoom]
 
     manager_queue: queue.Queue[message.Message]
@@ -18,6 +19,7 @@ class Manager:
         self.conn_threads: dict[tuple[str, int], connection.ConnectionThread] = {}
         self.rooms: dict[str, connection.ChatRoom] = {}
         self.dispacher = message_dispatcher.MessageDispatcher(self.conn_threads_lock, self.conn_threads)
+        self.conn_secrets = {}
 
     def accepting_thread(self, server_socket: socket.socket):
         room = connection.ChatRoom("hi")
