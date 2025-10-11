@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
-import threading, socket, select, queue
+import threading, socket, select, queue, ssl
 import bcrypt
 import message, message_sender
 
@@ -36,6 +36,34 @@ class ChatRoom():
     def initiate_secret_exchange(s):
         pass
 
+def drain_ssl(sock: ssl.SSLSocket, on_data) -> tuple[bool, bool, bool]:
+    """
+    Drain any app data already available in the SSL buffers.
+    Returns: (need_read, need_write, closed)
+    - need_read: True if we should wait for readability next
+    - need_write: True if we should wait for writability next
+    - closed: peer performed close_notify or connection closed
+    """
+    while True:
+        try:
+            chunk = sock.recv(65536)
+            if not chunk:
+                return False, False, True  
+            on_data(chunk)
+            # If OpenSSL still has decrypted bytes, keep draining without select():
+            if sock.pending() == 0:
+                return True, False, False
+            # otherwise loop again (there's more pending)
+        except ssl.SSLWantReadError:
+            # No more decrypted data right now
+            return True, False, False
+        except ssl.SSLWantWriteError:
+            # Read needs an underlying write first
+            return False, True, False
+        except ssl.SSLZeroReturnError:
+            return False, False, True
+
+
 class ConnectionThread(threading.Thread):
     addr: tuple[str, int]
     sock: socket.socket
@@ -66,7 +94,6 @@ class ConnectionThread(threading.Thread):
             message = self.message_forward_queue.get()
             message.forward(self.sender)
             
-
     def process_message(self):
         self.manager_queue.put(self.current_message_built)
         self.current_message_built = None
@@ -87,22 +114,48 @@ class ConnectionThread(threading.Thread):
         else: 
             return False
 
-    def handle_connection(self):
-        sock = self.sock
+    
 
+    def handle_connection(self):
+        sock: ssl.SSLSocket = self.sock
+        want_write, want_read = False, True
         while True:
             self.process_queue()
-            readable, writable, _ = select.select([sock], [sock], [])
-            if readable:
-                rsock: socket.socket = readable[0]
-                chunk = rsock.recv(8192)
-                if len(chunk) == 0:
-                    break
-                self.process_input(chunk)
+            
 
-            if writable:
-                self.sender.send(writable[0])
-        sock.close()
+            need_r, need_w, closed = drain_ssl(sock, self.process_input)
+            if closed:
+                break
+            # Merge needs with existing wants
+            want_read  = need_r or want_read
+            want_write = need_w or want_write
+
+            # Build interest lists dynamically
+            rlist = [sock]
+            wlist = [sock] if want_write or self.sender.write_buffer else []
+            readable, writable, _ = select.select(rlist, wlist, [], 0.1)
+
+            if writable and not want_read:
+                try:
+                    self.sender.send(writable[0])
+                    want_write = False
+                except ssl.SSLWantReadError:
+                    want_read, want_write = True, False
+                except ssl.SSLWantWriteError:
+                    want_write = True
+                except ssl.SSLZeroReturnError:
+                    break
+                
+            if readable and not want_write:
+                need_r, need_w, closed = drain_ssl(sock, self.process_input)
+                if closed:
+                    break
+                want_read  = need_r
+                want_write = need_w
+        try:
+            sock.close()
+        except:
+            pass
         print(f"a conn from {self.addr} is closing....")
 
     def run(self):
