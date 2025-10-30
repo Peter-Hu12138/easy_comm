@@ -75,6 +75,7 @@ def confirm_accept(key: selectors.SelectorKey, mask):
             if not data.outb:
                 if data.succ:
                     data.confirmed = True
+                    sel.modify(key.fileobj, selectors.EVENT_READ, key.data)
                 else:
                     disconnect(sock, data)
 
@@ -95,6 +96,8 @@ def service_connection(key: selectors.SelectorKey, mask):
                 if sk.data is not None and fd != key.fileobj.fileno() and sk.data.id == data.id:
                     # make sure it is not the listenning socket and it is not the socket we receive data from
                     sk.data.outb += recv_data
+                    newkey = sel.modify(sk.fileobj, selectors.EVENT_WRITE | selectors.EVENT_READ, sk.data)
+                    print(f"new key's event: {bin(newkey.events)}")
         else:
             disconnect(sock, data)
     if mask & selectors.EVENT_WRITE:
@@ -102,6 +105,9 @@ def service_connection(key: selectors.SelectorKey, mask):
             print(f"echoing {data.outb!r} to {data.addr}")
             sent = sock.send(data.outb)
             data.outb = data.outb[sent:]
+        else:
+            sel.modify(key.fileobj, selectors.EVENT_READ, key.data)
+
 
 
 sel = selectors.DefaultSelector()
