@@ -1,16 +1,13 @@
 from __future__ import annotations
 import socket
 import sys
-import types
+import struct
 import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
 from help_manual import cmd
 from tkinter import ttk
 import asyncio, ssl
 from async_tkinter_loop import async_handler, async_mainloop
-
-STX = b'\x02'  # Start of Text
-ETX = b'\x03'  # End of Text
 
 context = ssl.create_default_context()
 loop = asyncio.new_event_loop()
@@ -172,14 +169,31 @@ class Manager():
 
     async def tcp_send(self, message: bytes):
         print(f"sending {message.decode()}")
-        self.writer.write(int.to_bytes(6) + "hi,".encode() + message + ETX)
+        msg = int.to_bytes(6) + "hi,".encode() + message
+        self.writer.write(struct.pack("i", len(msg)) + msg) # Send prefix + msg
         await self.writer.drain()  # Ensure data is sent
 
     async def tcp_rec(self, reader: asyncio.StreamReader):
+        state = "idle"
+        yet_reading_size = 4
+        receive_buffer = b''
         while True:
-            data = await reader.read(8964)
+            data = await reader.read(yet_reading_size - len(receive_buffer))
+            if not data:
+                break
             print(f"receiving {data}")
-            self.chat_windows["hi"].display_message(data.decode())
+            receive_buffer += data
+            if len(receive_buffer) == yet_reading_size:
+                if state == "idle":
+                    state = "reading_body"
+                    yet_reading_size = struct.unpack("i", receive_buffer)[0]
+                    receive_buffer = b''
+                elif state == "reading_body":
+                    self.chat_windows["hi"].display_message(data.decode())
+                    state = "idle"
+                    yet_reading_size = 4
+                    receive_buffer = b''
+
 
     async def tcp_client(self):
         tasks = set()

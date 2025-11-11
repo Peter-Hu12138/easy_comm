@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import socket, asyncio
+import struct
 
 if TYPE_CHECKING:
     import message
@@ -20,7 +21,7 @@ class MessageSender:
     
     async def send(self, writer: asyncio.StreamWriter):
         """Pre: wsock is writable"""
-        writer.write(self.write_buffer)
+        writer.write(struct.pack('i', len(self.write_buffer)) + self.write_buffer)
         print(f"sending {self.write_buffer}")
         self.write_buffer = b''
         await writer.drain()

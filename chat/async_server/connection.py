@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
-import asyncio, socket, select, ssl
+import asyncio, socket, select, ssl, struct
 import bcrypt
 import message, message_sender
 
@@ -51,6 +51,9 @@ class Connection:
     sender: message_sender.MessageSender
 
     current_message_built: message.Message | None
+    
+    state: str
+    yet_reading_size: int
     receive_buffer: bytes
 
     def __init__(self, addr: tuple[str, int], manager_queue: asyncio.Queue[message.Message], reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
@@ -61,41 +64,51 @@ class Connection:
         self.message_forward_queue = asyncio.Queue()
         self.rooms = {}
         self.current_message_built = None
-        self.receive_buffer = b''
         self.sender = message_sender.MessageSender()
         self.TLS_secret = b''
+        self.state = "idle"
+        self.yet_reading_size = 4
+        self.receive_buffer = b''
+
         
 
     async def process_message(self):
         await self.manager_queue.put(self.current_message_built)
         self.current_message_built = None
 
-    async def process_input(self, chunk: bytes):
+    async def process_input(self, data: bytes):
         # takes in an input, cat it to the end of self.receive_buffer
         # if there is a complete message found, move it to current message built, and returns true
         # otherwise, returns false
-        self.receive_buffer += chunk
-        print(f"Receiving bytes: {chunk} from {self.addr}")
+        self.receive_buffer += data
 
-        idx = self.receive_buffer.find(ETX)
-        while idx != -1:
-            self.current_message_built = message.Message(self.receive_buffer[:idx + 1], self.addr)
-            self.receive_buffer = self.receive_buffer[idx + 1:]
-            await self.process_message()
-            idx = self.receive_buffer.find(ETX)
+        if len(self.receive_buffer) == self.yet_reading_size:
+            if self.state == "idle":
+                self.state = "reading_body"
+                self.yet_reading_size = struct.unpack("i", self.receive_buffer)[0]
+                self.receive_buffer = b''
+            elif self.state == "reading_body":
+                self.current_message_built = message.Message(self.receive_buffer[:], self.addr)
+                await self.process_message()
+                self.state = "idle"
+                self.yet_reading_size = 4
+                self.receive_buffer = b''
+
         # TODO: handle server/ client comm thru encryption and decryption
 
     async def main(self):
         queue_worker = asyncio.create_task(self.process_queue())
         try:
             while True:
-                data = await self.reader.read(1000)
-                if data:
-                    await self.process_input(data)
-                else:
+                data = await self.reader.read(self.yet_reading_size - len(self.receive_buffer))
+                if not data:
                     break
+                await self.process_input(data)
+
         except ConnectionError as e:
             print(f"Connection error: {e}")
+        except Exception as e:
+            print("queue worker err'ed", e)
         finally:
             # TODO: signal manager that this connection is close
             if not queue_worker.done():
