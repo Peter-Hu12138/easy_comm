@@ -4,8 +4,6 @@ import asyncio, socket, select, ssl, struct
 import bcrypt
 import message, message_sender
 
-ETX = b'\x03'  # End of Text
-
 class ChatRoom():
     id: str
     manager_queue: asyncio.Queue[message.Message]

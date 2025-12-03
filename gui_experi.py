@@ -1,37 +1,21 @@
-from tkinter import ttk
 import tkinter as tk
-
-def new_chat_window(sk, ):
-
+from tkinter import ttk
 
 root = tk.Tk()
+notebook = ttk.Notebook(root)
 
-# Set window size
-root.geometry("400x300")  # width x height
+# Create two frames for the two cards
+frame1 = ttk.Frame(notebook)
+frame2 = ttk.Frame(notebook)
 
-# Create input fields
-room_label = ttk.Label(root, text="Room ID:")
-room_label.pack()
-room_entry = ttk.Entry(root)
-room_entry.pack()
+# Add the frames to the notebook
+notebook.add(frame1, text='Card 1')
+notebook.add(frame2, text='Card 2')
 
-pass_label = ttk.Label(root, text="Password:")
-pass_label.pack()
-pass_entry = ttk.Entry(root)
-pass_entry.pack()
+notebook.pack()
 
-# Create buttons
-join_button = ttk.Button(root, text="Join")
-join_button.pack(pady=5)
-
-create_button = ttk.Button(root, text="Create")
-create_button.pack(pady=5)
-
-# tabControl = ttk.Notebook(root)
-# tab1 = ttk.Frame(tabControl)
-# tab2 = ttk.Frame(tabControl)
-# tabControl.add(tab1, text='Tab 1')
-# tabControl.add(tab2, text='Tab 2222')
-# tabControl.pack(expand=1, fill="both")
+# To show the second card, call notebook.select() with the identifier for frame2
+# The identifier is the frame object itself
+notebook.select(frame2)
 
 root.mainloop()
