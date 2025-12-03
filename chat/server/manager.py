@@ -1,6 +1,6 @@
 import socket, threading, queue
 import connection, message, message_dispatcher
-import select
+import select, ssl
 import traceback
 
 class Manager:
@@ -24,24 +24,31 @@ class Manager:
     def accepting_thread(self, server_socket: socket.socket):
         room = connection.ChatRoom("hi")
         while True:
-            sock, addr = server_socket.accept()
-            sock.setblocking(False)
-            ct = connection.ConnectionThread(sock=sock, daemon=True, addr=addr)
-            ct.manager_queue = self.manager_queue
-            ct.start()
-            self.conn_threads_lock.acquire()
-            self.conn_threads[addr] = ct
-            self.conn_threads_lock.release()
-            room.admit(ct)
+            try:
+                sock, addr = server_socket.accept()
+                sock.setblocking(False)
+                ct = connection.ConnectionThread(sock=sock, daemon=True, addr=addr)
+                ct.manager_queue = self.manager_queue
+                ct.start()
+                self.conn_threads_lock.acquire()
+                self.conn_threads[addr] = ct
+                self.conn_threads_lock.release()
+                room.admit(ct)
+            except ssl.SSLEOFError:
+                pass
 
     def process_manager_request(self, req: message.Message):
         self.dispacher.dispatch(req)
 
     def start(self, port: int):
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain('/home/jthu/Documents/easy_comm/experiment/ssl/server.crt', '/home/jthu/Documents/easy_comm/experiment/ssl/server.key')
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind(("localhost", 8000))
         server_socket.listen(5)
-        threading.Thread(target=self.accepting_thread, kwargs={"server_socket": server_socket}).start()
+        ssl_server_socket = context.wrap_socket(server_socket, server_side=True)
+
+        threading.Thread(target=self.accepting_thread, kwargs={"server_socket": ssl_server_socket}).start()
         try:
             while True:
                 try:

@@ -15,10 +15,11 @@ class MessageSender:
 
     def forward_chat(self, m: message.Message04_Chat):
         self.write_buffer += m.to_bytes()
+        print(f"forwarded message {self}")
+
     
-    def send(self, wsock: socket):
+    def send(self, wsock: socket.socket):
         """Pre: wsock is writable"""
-        if not self.write_buffer: return
         sent = wsock.send(self.write_buffer)
         print(f"sending {self.write_buffer[:sent]}")
         self.write_buffer = self.write_buffer[sent:]

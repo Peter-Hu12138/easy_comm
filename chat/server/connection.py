@@ -52,7 +52,7 @@ def drain_ssl(sock: ssl.SSLSocket, on_data) -> tuple[bool, bool, bool]:
             on_data(chunk)
             # If OpenSSL still has decrypted bytes, keep draining without select():
             if sock.pending() == 0:
-                return True, False, False
+                return False, False, False
             # otherwise loop again (there's more pending)
         except ssl.SSLWantReadError:
             # No more decrypted data right now
@@ -121,21 +121,18 @@ class ConnectionThread(threading.Thread):
         want_write, want_read = False, True
         while True:
             self.process_queue()
-            
-
             need_r, need_w, closed = drain_ssl(sock, self.process_input)
             if closed:
                 break
             # Merge needs with existing wants
             want_read  = need_r or want_read
             want_write = need_w or want_write
-
             # Build interest lists dynamically
             rlist = [sock]
-            wlist = [sock] if want_write or self.sender.write_buffer else []
+            wlist = [sock] if want_write or bool(self.sender.write_buffer) else []
             readable, writable, _ = select.select(rlist, wlist, [], 0.1)
 
-            if writable and not want_read:
+            if writable:
                 try:
                     self.sender.send(writable[0])
                     want_write = False
@@ -145,13 +142,11 @@ class ConnectionThread(threading.Thread):
                     want_write = True
                 except ssl.SSLZeroReturnError:
                     break
-                
+
             if readable and not want_write:
-                need_r, need_w, closed = drain_ssl(sock, self.process_input)
+                want_read, want_write, closed = drain_ssl(sock, self.process_input)
                 if closed:
                     break
-                want_read  = need_r
-                want_write = need_w
         try:
             sock.close()
         except:
