@@ -15,7 +15,7 @@ class MessageSender:
         self.write_buffer = b''
 
     def forward_chat(self, m: message.Message04_Chat):
-        self.write_buffer += m.to_bytes()
+        self.write_buffer += m.output()
         print(f"forwarded message {self}")
 
     

@@ -4,10 +4,6 @@ import threading
 import message
 import message_dispenser
 
-
-if TYPE_CHECKING:
-    import connection
-
 class MessageDispatcher:
     handler: message_dispenser.MessageHandler
 
@@ -19,11 +15,11 @@ class MessageDispatcher:
         """Decode the raw message and dispatch to it to the right place. """
         match m.type_byte:
             case 0:
-                m = message.Message00_CreateChatRoom(m.to_bytes(), m.from_addr)
+                m = message.Message00_CreateChatRoom(m.to_bytes())
             case 1:
-                m = message.Message01_JoinChatRoom(m.to_bytes(), m.from_addr, )
+                m = message.Message01_JoinChatRoom(m.to_bytes())
             case 6:
-                m = message.Message04_Chat(m.to_bytes(), m.from_addr, )
+                m = message.Message04_Chat(m.to_bytes())
             case _:
                 print(f"unexpected manager request {m}")
 

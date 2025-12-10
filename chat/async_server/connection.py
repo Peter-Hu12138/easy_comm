@@ -10,9 +10,10 @@ class ChatRoom():
     connections: dict[tuple[str, int], Connection]
     hashed_password: bytes
 
-    def __init__(self, id: str):
+    def __init__(self, id: str, password: str):
         self.connections = {}
         self.id = id
+        self.hashed_password = password
         
     async def forward_message(self, message_to_be_forawrded: message.Message):
         src_addr = message_to_be_forawrded.from_addr
@@ -25,6 +26,9 @@ class ChatRoom():
         self.connections[conn.addr] = conn
         conn.rooms[self.id] = self
 
+    def remove_connection(self, connection: tuple[str, int]):
+        del self.connections[connection]
+
     def set_password(self, password: bytes):
         self.hashed_password = bcrypt.hashpw(password, bcrypt.gensalt())
         
@@ -33,7 +37,9 @@ class ChatRoom():
     
     def initiate_secret_exchange(s):
         pass
-
+    
+    def verify_password(self, password):
+        return password == self.hashed_password
 
 
 class Connection:
@@ -54,6 +60,8 @@ class Connection:
     yet_reading_size: int
     receive_buffer: bytes
 
+
+
     def __init__(self, addr: tuple[str, int], manager_queue: asyncio.Queue[message.Message], reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         self.reader = reader
         self.writer = writer
@@ -71,6 +79,7 @@ class Connection:
         
 
     async def process_message(self):
+        print(f"receving message")
         await self.manager_queue.put(self.current_message_built)
         self.current_message_built = None
 
@@ -95,7 +104,7 @@ class Connection:
         # TODO: handle server/ client comm thru encryption and decryption
 
     async def main(self):
-        queue_worker = asyncio.create_task(self.process_queue())
+        self.queue_worker = asyncio.create_task(self.process_queue())
         try:
             while True:
                 data = await self.reader.read(self.yet_reading_size - len(self.receive_buffer))
@@ -108,13 +117,7 @@ class Connection:
         except Exception as e:
             print("queue worker err'ed", e)
         finally:
-            # TODO: signal manager that this connection is close
-            if not queue_worker.done():
-                queue_worker.cancel()
-            if self.writer and not self.writer.is_closing():
-                await self.writer.drain()
-                self.writer.close()
-                await self.writer.wait_closed()
+            asyncio.create_task(self.on_close())
         
     async def process_queue(self):
         try:
@@ -126,8 +129,19 @@ class Connection:
                 await self.sender.send(writer=self.writer)
         except asyncio.CancelledError:
             print("queue worker cancelling")
-        except Exception as e:
-            print("queue worker err'ed", e)
-        finally:
-            pass
     
+    async def on_close(self):
+        for room_name in self.rooms:
+            self.rooms[room_name].remove_connection(self.addr)
+        
+        # TODO: signal manager that this connection is close
+
+        # self.manager_queue
+
+        if not self.queue_worker.done():
+            self.queue_worker.cancel()
+
+        if self.writer and not self.writer.is_closing():
+            await self.writer.drain()
+            self.writer.close()
+            await self.writer.wait_closed()
