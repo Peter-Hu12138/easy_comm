@@ -96,7 +96,7 @@ class Message04_Chat(ChatMessage):
 
     def output(self):
         result = {"from_name": self.from_addr, "content": self.message_content, "room_name": self.room_name}
-        return int.to_bytes(6) + json.dumps(result).encode()
+        return int.to_bytes(3) + json.dumps(result).encode()
         
 
 

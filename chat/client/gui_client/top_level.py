@@ -72,8 +72,8 @@ class CardApp(tk.Tk):
         m = message.Message(msg)
         loop.create_task(self.dispatcher.dispatch(m))
 
-    def update_message(self, chat_room_name: str, message:str):
-        self.frames[chat_room_name].display_message(message)
+    def update_message(self, chat_room_name: str, message:str, from_name: str):
+        self.frames[chat_room_name].display_message(message, from_name)
 
     def request_create_room(self, room_name, password):
         message = {"room_name": room_name, "password": password}
@@ -91,8 +91,8 @@ class CardApp(tk.Tk):
             case 1:
                 msg = message.Message01_JoinChatRoom.from_string(room_name, password)
                 msg = msg.output()
-            case 6:
-                msg = message.Message04_Chat.from_string(room_name, password)
+            case 3:
+                msg = message.Message03_Chat.from_string(room_name, msg_content)
                 msg = msg.output()
 
         loop.create_task(self.conn_manager.tcp_send(msg))

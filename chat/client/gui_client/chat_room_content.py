@@ -29,6 +29,15 @@ class ChatWindow(tk.Frame):
         self.room_name = room_id
         self.UI_manager = UI_manager
 
+        self.name_frame = tk.Frame(self)
+        self.name_frame.pack(padx=10, pady=10, fill=tk.X)
+
+        self.name_label = tk.Label(self.name_frame, text="Display name:")
+        self.name_label.pack()
+        self.name_input_field = tk.Entry(self.name_frame)
+        self.name_input_field.pack(padx=10, pady=10, fill=tk.X)
+
+
         self.text_area = ScrolledText(self, wrap=tk.WORD, state=tk.DISABLED)
         self.text_area.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
         self.text_area.config(state=tk.NORMAL)
@@ -39,27 +48,25 @@ class ChatWindow(tk.Frame):
 
         self.is_failed = False
 
-        self.display_message(
-            "Welcome to use EASY COMM, developed by Jingtian Hu at the University of Toronto. For help, enter \"/help\"")
-
     def service_connection(self, message):
         if message:
             self.display_message(f"Received {message.decode()}")
 
-    def display_message(self, message: str):
+    def display_message(self, message: str, from_name: str=None):
+        
+        if from_name is None:
+            display_msg = message
+        else:
+            display_msg = f"{from_name}: {message}"
         self.text_area.config(state=tk.NORMAL)
-        self.text_area.insert(tk.END, message + "\n")
+        self.text_area.insert(tk.END, display_msg + "\n")
         self.text_area.yview(tk.END)
         self.text_area.config(state=tk.DISABLED)
 
-
     def send_message(self, event=None):
         if self.input_field.get():
-            if self.input_field.get().startswith("/"):
-                cmd(self.input_field.get()[1:], self.key, self, self.display_message)
-            else:
-                self.display_message("Sent: " + self.input_field.get())
-                self.UI_manager.send_message(message_type=6, room_name=self.room_name, msg_content=self.input_field.get())
+            self.display_message("Sent: " + self.input_field.get())
+            self.UI_manager.send_message(message_type=3, room_name=self.room_name, msg_content=self.input_field.get(), from_name=self.name_input_field.get())
             self.input_field.delete(0, tk.END)
 
     def on_closing(self):

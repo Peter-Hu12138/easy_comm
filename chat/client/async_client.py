@@ -28,7 +28,7 @@ async def tcp_send(writer):
         while True:
             line = await aioconsole.ainput("Send to chat:")
             message = line
-            msg = int.to_bytes(6) + "hi,".encode() + message.encode()
+            msg = int.to_bytes(3) + "hi,".encode() + message.encode()
             print(f"sending {msg}")
             writer.write(struct.pack("i", len(msg)) + msg) # Send prefix + msg
             print("before draining")

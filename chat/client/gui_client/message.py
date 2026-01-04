@@ -53,12 +53,12 @@ class AuthMessage(Message):
     def verify():
         raise NotImplementedError
 
-    def on_valid_request(self, UI_manager: top_level.CardApp):
+    async def on_valid_request(self, UI_manager: top_level.CardApp):
         raise NotImplementedError
     
 
 
-class Message04_Chat(ChatMessage):
+class Message03_Chat(ChatMessage):
     from_name: str | None
     room_name: str | None
     content: str | None
@@ -71,14 +71,14 @@ class Message04_Chat(ChatMessage):
     async def dispatch(self, handler: message_dispenser.MessageHandler):
         await handler.handle_chat(self)
     
-    def on_valid_request(self, UI_manager: top_level.CardApp):
-        UI_manager.update_message(self.room_name, self.content)
+    async def on_valid_request(self, UI_manager: top_level.CardApp):
+        UI_manager.update_message(self.room_name, self.content, self.from_name)
 
     def output(self):
-        return int.to_bytes(6) + json.dumps(self.json_dictionary).encode()
+        return int.to_bytes(3) + json.dumps(self.json_dictionary).encode()
     
     def from_string(room_name: str, content: str, from_name: str="Anonymous"):
-        return Message04_Chat(None, {"room_name": room_name,
+        return Message03_Chat(None, {"room_name": room_name,
                                      "content": content,
                                      "from_name": from_name})
         
@@ -101,7 +101,7 @@ class Message00_CreateChatRoom(AuthMessage):
         return False
         
     
-    def on_valid_request(self, UI_manager: top_level.CardApp):
+    async def on_valid_request(self, UI_manager: top_level.CardApp):
         UI_manager.add_room(self.room_name)
 
     def output(self):
@@ -141,7 +141,7 @@ class Message01_JoinChatRoom(AuthMessage):
         result = {"status": self.status}
         return json.dumps(result)
     
-    def on_valid_request(self, UI_manager: top_level.CardApp):
+    async def on_valid_request(self, UI_manager: top_level.CardApp):
         UI_manager.add_room(self.room_name)
     
     def output(self):

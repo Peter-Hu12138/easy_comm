@@ -18,8 +18,8 @@ class MessageDispatcher:
                 m = message.Message00_CreateChatRoom(m.to_bytes())
             case 1:
                 m = message.Message01_JoinChatRoom(m.to_bytes())
-            case 6:
-                m = message.Message04_Chat(m.to_bytes())
+            case 3:
+                m = message.Message03_Chat(m.to_bytes())
             case _:
                 print(f"unexpected manager request {m}")
 

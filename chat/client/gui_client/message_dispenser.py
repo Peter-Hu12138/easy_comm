@@ -22,7 +22,7 @@ class MessageHandler:
             print(f"processing auth message")
             m: message.AuthMessage
             if m.verify():
-                m.on_valid_request(self.UI_manager)
+                await m.on_valid_request(self.UI_manager)
             else:
                 # TODO: inform user with a pop up
                 pass

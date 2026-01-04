@@ -22,7 +22,7 @@ class MessageDispatcher:
                 m = message.Message00_CreateChatRoom(m.to_bytes(), m.from_addr)
             case 1:
                 m = message.Message01_JoinChatRoom(m.to_bytes(), m.from_addr, )
-            case 6:
+            case 3:
                 m = message.Message04_Chat(m.to_bytes(), m.from_addr, )
             case _:
                 print(f"unexpected manager request {m}")

@@ -126,22 +126,6 @@ class Manager():
         """
         creates a chatwindow with a newly created socket, then try to validate with the server with a formatted message.
         """
-        # room_id = int(self.room_entry.get())
-        # self.room_entry.delete(0, tk.END)
-        # password = int(self.pass_entry.get())
-        # self.pass_entry.delete(0, tk.END)
-        # print(f"Starting connection to {server_addr} room number {room_id}")
-        # sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # sock.setblocking(False)
-        # sock.connect_ex(server_addr)
-        # events = selectors.EVENT_READ | selectors.EVENT_WRITE
-        # data = types.SimpleNamespace(
-        #     recv_total=0,
-        #     outb=b"",
-        #     name=self.name,
-        #     window=-1,
-        # )
-        # key = self.sel.register(sock, events, data=data)
         chat_window = ChatWindow(manager=self, room_id="hi")
 
         # if operation == "join":
@@ -169,7 +153,7 @@ class Manager():
 
     async def tcp_send(self, message: bytes):
         print(f"sending {message.decode()}")
-        msg = int.to_bytes(6) + "hi,".encode() + message
+        msg = int.to_bytes(3) + "hi,".encode() + message
         self.writer.write(struct.pack("i", len(msg)) + msg) # Send prefix + msg
         await self.writer.drain()  # Ensure data is sent
 
