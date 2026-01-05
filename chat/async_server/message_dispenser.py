@@ -31,12 +31,9 @@ class MessageHandler:
             m: message.AuthMessage
             if m.verify(self.rooms):
                 m.on_valid_request(self.rooms, self.connections)
-            
             await self.connections[m.from_addr].message_forward_queue.put(m)
-            
-            
     
-    def handle_auth():
+    def handle_leave_room():
         pass
 
     def handle_key_exchange():

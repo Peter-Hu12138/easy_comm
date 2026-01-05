@@ -17,7 +17,9 @@ context = ssl.create_default_context()
 loop = asyncio.new_event_loop()
 
 class CardApp(tk.Tk):
-    frames: dict [None | int | str:ttk.Frame]
+    frames: dict[str: None | int | str:ttk.Frame]
+    room_infos: dict[str: ClickableInfoFrame]
+
     conn_manager: object
     dispatcher: message_dispatcher.MessageDispatcher
     handler: message_dispenser.MessageHandler
@@ -36,10 +38,8 @@ class CardApp(tk.Tk):
         self.admin_button = ttk.Button(self.navbar, text="Join / Create a Room", command=lambda:self.show_frame(None))
         self.admin_button.pack(side= 'bottom', fill='x')
 
-
         self.container = tk.Frame(self)
         self.container.pack(fill="both", expand=True)
-
 
         # Configure grid to allow the container to expand
         self.container.grid_rowconfigure(0, weight=1)
@@ -47,6 +47,7 @@ class CardApp(tk.Tk):
 
         # Dictionary to keep track of frames (like giving strings to CardLayout)
         self.frames = {}
+        self.room_infos = {}
         self.frames[None] = Manager(self.container, self.send_message)
         self.frames[None].grid(row=0, column=0, sticky="nsew")
         
@@ -68,34 +69,25 @@ class CardApp(tk.Tk):
         frame.tkraise() # Brings this frame to the top of the stack
 
     def process_incoming_message(self, msg: bytes):
-        print(f"receiving {msg}")
+        print(f"cardapp receiving {msg}")
         m = message.Message(msg)
         loop.create_task(self.dispatcher.dispatch(m))
 
     def update_message(self, chat_room_name: str, message:str, from_name: str):
         self.frames[chat_room_name].display_message(message, from_name)
-
-    def request_create_room(self, room_name, password):
-        message = {"room_name": room_name, "password": password}
-        loop.create_task(self.conn_manager.tcp_send(json.dumps(message).encode(), 0))
-
-    def request_join_room(self, room_name, password):
-        message = {"room_name": room_name, "password": password}
-        loop.create_task(self.conn_manager.tcp_send(json.dumps(message).encode(), 1))
     
     def send_message(self, message_type: int, room_name: str=None, msg_content: str=None, password: str= None, from_name: str = None):
         match message_type:
             case 0:
                 msg = message.Message00_CreateChatRoom.from_string(room_name, password)
-                msg = msg.output()
             case 1:
                 msg = message.Message01_JoinChatRoom.from_string(room_name, password)
-                msg = msg.output()
+            case 2:
+                msg = message.Message02_LeaveChatRoom.from_string(room_name)
             case 3:
                 msg = message.Message03_Chat.from_string(room_name, msg_content)
-                msg = msg.output()
 
-        loop.create_task(self.conn_manager.tcp_send(msg))
+        loop.create_task(self.conn_manager.tcp_send(msg.output()))
 
     def add_room(self, room_name):
         self.frames[room_name] = ChatWindow(room_name, self.container, self)
@@ -103,8 +95,18 @@ class CardApp(tk.Tk):
         
         # Now add some controls to the scrollframe. 
         # NOTE: the child controls are added to the view port (scrollFrame.viewPort, NOT scrollframe itself)
-        self.room_info = ClickableInfoFrame(self.scrollFrame.viewPort, room_name, "sd: hi", 20, command=lambda name=room_name: self.show_frame(name))
-        self.room_info.pack(fill='x')
+        self.room_infos[room_name] = ClickableInfoFrame(self.scrollFrame.viewPort, room_name, "sd: hi", 20, command=lambda name=room_name: self.show_frame(name))
+        self.room_infos[room_name].pack(fill='x')
+
+    def delete_room(self, room_name):
+        self.frames[room_name].destroy()
+        del self.frames[room_name]
+
+        self.room_infos[room_name].destroy()
+        del self.room_infos[room_name]
+
+
+
 
 
 
@@ -121,12 +123,11 @@ class ConnectionManager:
     def start(self):
         self.loop.create_task(self.tcp_client())
 
-    def send(self, message: bytes, chat_room_name: str):
-        self.loop.create_task(self.tcp_send(message, chat_room_name))
+    def send(self, msg: bytes, chat_room_name: str):
+        self.loop.create_task(self.tcp_send(msg, chat_room_name))
 
-    async def tcp_send(self, message: bytes):
-        print(f"sending {message.decode()} to {self.writer.get_extra_info('socket', default=None)}")
-        msg = message
+    async def tcp_send(self, msg: bytes):
+        print(f"sending {msg.decode()} to {self.writer.get_extra_info('socket', default=None)}")
         self.writer.write(struct.pack("i", len(msg)) + msg) # Send prefix + msg
         await self.writer.drain()  # Ensure data is sent
 
@@ -138,7 +139,7 @@ class ConnectionManager:
             data = await reader.read(yet_reading_size - len(receive_buffer))
             if not data:
                 break
-            print(f"receiving {data}")
+            print(f"tcp receiving {data}")
             receive_buffer += data
             if len(receive_buffer) == yet_reading_size:
                 if state == "idle":

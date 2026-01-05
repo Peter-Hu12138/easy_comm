@@ -14,7 +14,7 @@ class MessageSender:
     def __init__(self):
         self.write_buffer = b''
 
-    def forward_chat(self, m: message.Message04_Chat):
+    def forward_chat(self, m: message.Message03_Chat):
         self.write_buffer += m.output()
         print(f"forwarded message {self}")
 

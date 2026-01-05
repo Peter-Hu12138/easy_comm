@@ -51,7 +51,7 @@ class AuthMessage(Message):
     
 
 
-class Message04_Chat(ChatMessage):
+class Message03_Chat(ChatMessage):
     room_name: str | None
     message_content: str | None
     from_name: str | None
@@ -115,10 +115,7 @@ class Message00_CreateChatRoom(AuthMessage):
         self.valid = self.verify_room_name()
             
     def verify_room_name(self):
-        if ',' in self.room_name:
-            return False
-        else:
-            return True
+        return True
         
     def verify(self, connection_rooms):
         if not self.verify_room_name():
@@ -134,7 +131,7 @@ class Message00_CreateChatRoom(AuthMessage):
     
     def on_valid_request(self, connection_rooms: dict[str, connection.ChatRoom], connections: dict[tuple[str, int], connection.ConnectionThread]):
         import connection
-        connection_rooms[self.room_name] = connection.ChatRoom(self.room_name, self.password)
+        connection_rooms[self.room_name] = connection.ChatRoom(self.room_name, self.password, connection_rooms)
         connection_rooms[self.room_name].admit(connections[self.from_addr])
 
     def output(self):
@@ -156,10 +153,7 @@ class Message01_JoinChatRoom(AuthMessage):
         self.valid = self.verify_room_name()
 
     def verify_room_name(self):
-        if ',' in self.room_name:
-            return False
-        else:
-            return True
+        return True
         
     def verify(self, connection_rooms):
         if not self.verify_room_name():
@@ -183,3 +177,44 @@ class Message01_JoinChatRoom(AuthMessage):
     
     def on_valid_request(self, connection_rooms: dict[str, connection.ChatRoom], connections: dict[tuple[str, int], connection.ConnectionThread]):
         connection_rooms[self.room_name].admit(connections[self.from_addr])
+
+class Message02_LeaveChatRoom(AuthMessage):
+    room_name: str | None
+
+    json_dictionary: dict[str:str]
+
+    valid: bool
+
+    def __init__(self, raw_message, from_addr):
+        super().__init__(raw_message, from_addr)
+        self.json_dictionary = json.loads(self.content.decode())
+        self.room_name = self.json_dictionary["room_name"]
+        self.valid = self.verify_room_name()
+
+    def verify_room_name(self):
+        return True
+        
+    def verify(self, connection_rooms):
+        if not self.verify_room_name():
+            self.status = "incorret_room_name"
+            return False
+
+        if self.room_name not in connection_rooms:
+            self.status = "room_DNE"
+            return False
+        
+        if not self.from_addr in connection_rooms[self.room_name].connections:
+            self.status = "not_in_room"
+            return False
+        
+        self.status = "succ"
+        return True
+    
+    def output(self):
+        result = {"status": self.status, "room_name": self.room_name}
+        return int.to_bytes(2) + json.dumps(result).encode()
+    
+    def on_valid_request(self, connection_rooms: dict[str, connection.ChatRoom], connections: dict[tuple[str, int], connection.ConnectionThread]):
+        connection_rooms[self.room_name].remove_connection(self.from_addr)
+
+

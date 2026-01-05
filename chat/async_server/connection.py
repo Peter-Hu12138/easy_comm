@@ -6,14 +6,15 @@ import message, message_sender
 
 class ChatRoom():
     id: str
-    manager_queue: asyncio.Queue[message.Message]
+    room_manager: dict[str, ChatRoom]
     connections: dict[tuple[str, int], Connection]
     hashed_password: bytes
 
-    def __init__(self, id: str, password: str):
+    def __init__(self, id: str, password: str, room_manager: dict[str, ChatRoom]):
         self.connections = {}
         self.id = id
         self.hashed_password = password
+        self.room_manager = room_manager
         
     async def forward_message(self, message_to_be_forawrded: message.Message):
         src_addr = message_to_be_forawrded.from_addr
@@ -26,8 +27,12 @@ class ChatRoom():
         self.connections[conn.addr] = conn
         conn.rooms[self.id] = self
 
-    def remove_connection(self, connection: tuple[str, int]):
-        del self.connections[connection]
+    # Pre: connection_addr in self.connections
+    def remove_connection(self, connection_addr: tuple[str, int]):
+        del self.connections[connection_addr]
+        if len(self.connections) == 0:
+            del self.room_manager[self.id] # delete this room
+
 
     def set_password(self, password: bytes):
         self.hashed_password = bcrypt.hashpw(password, bcrypt.gensalt())
@@ -59,9 +64,6 @@ class Connection:
     state: str
     yet_reading_size: int
     receive_buffer: bytes
-
-
-
     def __init__(self, addr: tuple[str, int], manager_queue: asyncio.Queue[message.Message], reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         self.reader = reader
         self.writer = writer

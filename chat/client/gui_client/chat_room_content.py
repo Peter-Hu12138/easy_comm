@@ -20,8 +20,9 @@ loop = asyncio.new_event_loop()
 class ChatWindow(tk.Frame):
     text_area: ScrolledText
     input_field: tk.Entry
+    leave_button: tk.Button
     messages: str
-    room_id: int
+    room_id: str
     is_failed: bool
 
     def __init__(self, room_id: str, master, UI_manager: top_level.CardApp):
@@ -31,12 +32,14 @@ class ChatWindow(tk.Frame):
 
         self.name_frame = tk.Frame(self)
         self.name_frame.pack(padx=10, pady=10, fill=tk.X)
+    
+        self.leave_button = tk.Button(self.name_frame, text="leave room", command=self.leave_room)
+        self.leave_button.pack()
 
         self.name_label = tk.Label(self.name_frame, text="Display name:")
-        self.name_label.pack()
+        self.name_label.pack(side=tk.LEFT)
         self.name_input_field = tk.Entry(self.name_frame)
         self.name_input_field.pack(padx=10, pady=10, fill=tk.X)
-
 
         self.text_area = ScrolledText(self, wrap=tk.WORD, state=tk.DISABLED)
         self.text_area.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
@@ -68,6 +71,10 @@ class ChatWindow(tk.Frame):
             self.display_message("Sent: " + self.input_field.get())
             self.UI_manager.send_message(message_type=3, room_name=self.room_name, msg_content=self.input_field.get(), from_name=self.name_input_field.get())
             self.input_field.delete(0, tk.END)
+
+    def leave_room(self):
+        self.UI_manager.send_message(message_type=2, room_name=self.room_name)
+        
 
     def on_closing(self):
         self.manager.close_chat_window(self)

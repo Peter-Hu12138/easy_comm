@@ -18,16 +18,16 @@ class Message:
 
 
     def __init__(self, raw_message: bytes=None, dict_message: dict=None):
-        if raw_message:
+        if raw_message: # decode
             self.type_byte = raw_message[0]
             self.content = raw_message[1:]
             self.to_addr = None
             self.json_dictionary = json.loads(self.content)
-        else:
+        else: # encode
             self.json_dictionary = dict_message
 
     def __str__(self):
-        return f"type: {self.type_byte} to:{self.to.addr} content:{self.content}"
+        return f"type: {self.type_byte} to:{self.to_addr} content:{self.content}"
 
     def to_bytes(self) -> bytes:
         return int.to_bytes(self.type_byte) + self.content
@@ -127,19 +127,12 @@ class Message01_JoinChatRoom(AuthMessage):
 
 
     def verify_room_name(self):
-        if ',' in self.room_name:
-            return False
-        else:
-            return True
+        return True
         
     def verify(self):
         if self.status == "succ":
             return True
         return False
-    
-    def output(self):
-        result = {"status": self.status}
-        return json.dumps(result)
     
     async def on_valid_request(self, UI_manager: top_level.CardApp):
         UI_manager.add_room(self.room_name)
@@ -150,3 +143,32 @@ class Message01_JoinChatRoom(AuthMessage):
     def from_string(room_name: str, password: str):
         return Message01_JoinChatRoom(None, {"room_name": room_name,
                                      "password": password})
+
+class Message02_LeaveChatRoom(AuthMessage):
+    room_name: str | None
+    json_dictionary: dict[str:str]
+
+    valid: bool
+
+    def __init__(self, raw_message = None,dict_message: dict=None):
+        super().__init__(raw_message, dict_message)
+        self.room_name = self.json_dictionary["room_name"]
+        if raw_message:
+            self.status = self.json_dictionary["status"]
+
+    def verify_room_name(self):
+        return True
+        
+    def verify(self):
+        if self.status == "succ":
+            return True
+        return False
+    
+    async def on_valid_request(self, UI_manager: top_level.CardApp):
+        UI_manager.delete_room(self.room_name)
+    
+    def output(self):
+        return int.to_bytes(2) + json.dumps(self.json_dictionary).encode()
+    
+    def from_string(room_name: str):
+        return Message02_LeaveChatRoom(None, {"room_name": room_name})
