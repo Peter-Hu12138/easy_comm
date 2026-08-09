@@ -1,65 +1,60 @@
-import socket, threading, queue
-import connection, message, message_dispatcher
-import select
+from __future__ import annotations
+import asyncio
 import traceback
 
+from . import connection
+from . import message
+from . import message_dispatcher
+from . import message_handler
+
+
 class Manager:
-    conn_threads_lock: threading.Lock
-    conn_threads: dict[tuple[str, int], connection.ConnectionThread]
     rooms: dict[str, connection.ChatRoom]
-
-    manager_queue: queue.Queue[message.Message]
-
-    dispacher: message_dispatcher.MessageDispatcher
+    connections: dict[tuple[str, int], connection.Connection]
+    inbox: asyncio.Queue[tuple[bytes, connection.Connection]]
 
     def __init__(self):
-        self.conn_threads_lock = threading.Lock()
-        self.manager_queue: queue.Queue[message.Message] = queue.Queue()
-        self.conn_threads: dict[tuple[str, int], connection.ConnectionThread] = {}
-        self.rooms: dict[str, connection.ChatRoom] = {}
-        self.dispacher = message_dispatcher.MessageDispatcher(self.conn_threads_lock, self.conn_threads)
+        self.rooms = {}
+        self.connections = {}
+        self.inbox = asyncio.Queue()
+        self.dispatcher = message_dispatcher.MessageDispatcher(
+            message_handler.MessageHandler(self.rooms))
 
-    def accepting_thread(self, server_socket: socket.socket):
-        room = connection.ChatRoom("hi")
-        while True:
-            sock, addr = server_socket.accept()
-            sock.setblocking(False)
-            ct = connection.ConnectionThread(sock=sock, daemon=True, addr=addr)
-            ct.manager_queue = self.manager_queue
-            ct.start()
-            self.conn_threads_lock.acquire()
-            self.conn_threads[addr] = ct
-            self.conn_threads_lock.release()
-            room.admit(ct)
-
-    def process_manager_request(self, req: message.Message):
-        self.dispacher.dispatch(req)
-
-    def start(self, port: int):
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.bind(("localhost", 8000))
-        server_socket.listen(5)
-        threading.Thread(target=self.accepting_thread, kwargs={"server_socket": server_socket}).start()
+    async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        conn = connection.Connection(reader, writer, self.inbox)
+        self.connections[conn.addr] = conn
+        print(f"accepted connection from {conn.addr}")
         try:
-            while True:
-                try:
-                    if not self.manager_queue.empty():
-                        request = self.manager_queue.get()
-                        self.process_manager_request(request)
-                except KeyboardInterrupt:
-                    raise KeyboardInterrupt
-                except Exception as e:
-                    traceback.print_exc()
-                    print(f"error, continuing")
-
-        except KeyboardInterrupt:
-            print("ctrl-c detected, existing...")
-        # except Exception as e:
-        #     print(f"unexpected error {e}")
+            await conn.run()
         finally:
-            server_socket.close()
-        print("main thread exiting")
+            self.connections.pop(conn.addr, None)
+            for room in list(conn.rooms.values()):
+                room.evict(conn)
 
-if __name__ == "__main__":
-    manager = Manager()
-    manager.start(1)
+    async def _dispatch_loop(self):
+        while True:
+            raw, sender = await self.inbox.get()
+            try:
+                self.dispatcher.dispatch(raw, sender)
+            except message.ProtocolError as e:
+                print(f"bad frame from {sender.addr}: {e}")
+            except Exception:
+                traceback.print_exc()
+                print("error, continuing")
+
+    async def serve(self, host: str, port: int):
+        server = await asyncio.start_server(self._handle_client, host, port)
+        dispatch_task = asyncio.create_task(self._dispatch_loop())
+        print(f"listening on {(host, port)}")
+        try:
+            async with server:
+                await server.serve_forever()
+        finally:
+            dispatch_task.cancel()
+
+
+def main(host: str, port: int):
+    try:
+        asyncio.run(Manager().serve(host, port))
+    except KeyboardInterrupt:
+        print("ctrl-c detected, exiting...")

@@ -1,106 +1,75 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-import threading, socket, select, queue
+import asyncio
 import bcrypt
-import message, message_sender
 
-ETX = b'\x03'  # End of Text
+from . import message
 
-class ChatRoom():
-    id: str
-    manager_queue: queue.Queue[message.Message]
-    connections: dict[tuple[str, int], ConnectionThread]
+
+class ChatRoom:
+    name: str
     hashed_password: bytes
+    members: dict[tuple[str, int], Connection]
 
-    def __init__(self, id: str):
-        self.connections = {}
-        self.id = id
-        
-    def forward_message(self, message_to_be_forawrded: message.Message):
-        src_addr = message_to_be_forawrded.from_addr
-        for k in self.connections:
-            if k != src_addr:
-                print(f"putting message to {self.connections[k]}'s queue")
-                self.connections[k].message_forward_queue.put(message_to_be_forawrded)
-
-    def admit(self, ct: ConnectionThread):
-        self.connections[ct.addr] = ct
-        ct.rooms[self.id] = self
-
-    def set_password(self, password: bytes):
+    def __init__(self, name: str, password: bytes):
+        self.name = name
         self.hashed_password = bcrypt.hashpw(password, bcrypt.gensalt())
-        
-    def check_password(self, password: bytes):
+        self.members = {}
+
+    def check_password(self, password: bytes) -> bool:
         return bcrypt.checkpw(password, self.hashed_password)
-    
-    def initiate_secret_exchange(s):
-        pass
 
-class ConnectionThread(threading.Thread):
+    def admit(self, conn: Connection):
+        self.members[conn.addr] = conn
+        conn.rooms[self.name] = self
+
+    def evict(self, conn: Connection):
+        self.members.pop(conn.addr, None)
+        conn.rooms.pop(self.name, None)
+
+    def broadcast(self, m: message.Message, exclude: Connection | None = None):
+        for member in self.members.values():
+            if member is not exclude:
+                member.send(m)
+
+
+class Connection:
+    """One client socket. Replaces the old ConnectionThread: the read loop is a
+    coroutine, and outgoing messages go through a queue drained by a writer task
+    so any part of the server can send() without awaiting."""
     addr: tuple[str, int]
-    sock: socket.socket
-
-    message_forward_queue: queue.Queue[message.Message]
     rooms: dict[str, ChatRoom]
-    manager_queue: queue.Queue[message.Message]
-    sender: message_sender.MessageSender
 
-    current_message_built: message.Message | None
-    receive_buffer: bytes
-
-    def __init__(self, sock: socket.socket, addr: tuple[str, int], group = None, target = None, name = None, args = ..., kwargs = None, *, daemon = None):
-        super().__init__(group, target, name, args, kwargs, daemon=daemon)
-        self.sock = sock
-        self.addr = addr
-        self.message_forward_queue = queue.Queue()
+    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                 inbox: asyncio.Queue[tuple[bytes, Connection]]):
+        self.reader = reader
+        self.writer = writer
+        self.addr = writer.get_extra_info("peername")
+        self.inbox = inbox
         self.rooms = {}
-        self.current_message_built = None
-        self.receive_buffer = b''
-        self.sender = message_sender.MessageSender()
+        self.outgoing: asyncio.Queue[message.Message] = asyncio.Queue()
 
-    def process_queue(self):
-        if not self.message_forward_queue.empty():
-            message = self.message_forward_queue.get()
-            message.forward(self.sender)
-            
+    def send(self, m: message.Message):
+        self.outgoing.put_nowait(m)
 
-    def process_message(self):
-        self.manager_queue.put(self.current_message_built)
-        self.current_message_built = None
-
-    def process_input(self, chunk: bytes) -> bool:
-        # takes in an input, cat it to the end of self.receive_buffer
-        # if there is a complete message found, move it to current message built, and returns true
-        # otherwise, returns false
-        self.receive_buffer += chunk
-        idx = self.receive_buffer.find(ETX)
-        print(f"Receiving bytes: {chunk} from {self.addr}")
-
-        if idx != -1 and self.current_message_built is None:
-            self.current_message_built = message.Message(self.receive_buffer[:idx + 1], self.addr)
-            self.receive_buffer = self.receive_buffer[idx + 1:]
-            self.process_message()
-            return True
-        else: 
-            return False
-
-    def handle_connection(self):
-        sock = self.sock
-
+    async def _write_loop(self):
         while True:
-            self.process_queue()
-            readable, writable, _ = select.select([sock], [sock], [])
-            if readable:
-                rsock: socket.socket = readable[0]
-                chunk = rsock.recv(8192)
-                if len(chunk) == 0:
+            m = await self.outgoing.get()
+            self.writer.write(m.encode())
+            await self.writer.drain()
+
+    async def run(self):
+        writer_task = asyncio.create_task(self._write_loop())
+        try:
+            while True:
+                try:
+                    frame = await self.reader.readuntil(message.ETX)
+                except (asyncio.IncompleteReadError, ConnectionResetError):
                     break
-                self.process_input(chunk)
-
-            if writable:
-                self.sender.send(writable[0])
-        sock.close()
-        print(f"a conn from {self.addr} is closing....")
-
-    def run(self):
-        self.handle_connection()
+                except asyncio.LimitOverrunError:
+                    print(f"frame from {self.addr} exceeds size limit, disconnecting")
+                    break
+                await self.inbox.put((frame[:-1], self))
+        finally:
+            writer_task.cancel()
+            self.writer.close()
+        print(f"connection from {self.addr} closed")

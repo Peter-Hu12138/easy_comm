@@ -1,69 +1,29 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
-import threading, queue
-import message
-import message_dispenser
 
+from . import message
+from . import message_handler
 
 if TYPE_CHECKING:
-    import connection
+    from . import connection
+
+MESSAGE_TYPES: dict[int, type[message.Message]] = {
+    message.TYPE_JOIN: message.JoinMessage,
+    message.TYPE_CHAT: message.ChatMessage,
+    message.TYPE_CREATE: message.CreateMessage,
+}
+
 
 class MessageDispatcher:
-    conn_threads_lock: threading.Lock
-    conn_threads: dict[tuple[str, int], connection.ConnectionThread]
-    handler: message_dispenser.MessageHandler
+    """Decodes a raw frame into a typed Message and double-dispatches it to the handler."""
 
-    def __init__(self, conn_threads_lock: threading.Lock, 
-                 conn_threads: dict[tuple[str, int], connection.ConnectionThread]):
-        self.conn_threads = conn_threads
-        self.conn_threads_lock = conn_threads_lock
-        self.handler = message_dispenser.MessageHandler(conn_threads_lock, conn_threads)
-        
+    def __init__(self, handler: message_handler.MessageHandler):
+        self.handler = handler
 
-    def dispatch(self, m: message.Message) -> message.Message:
-        """Decode the raw message and dispatch to it to the right place. """
-        match m.type_byte:
-            case 4:
-                m = message.Message04_Chat(m.to_bytes(), m.from_addr, )
-            case _:
-                print(f"unexpected manager request {m}")
-
-        m.dispatch(self.handler)
-
-    def process_incoming_from_socket(self):
-        type_byte = self.type_byte
-        match type_byte:
-            # login request
-            case 0:
-                pass
-            # DH public key from host
-            case 1:
-                pass
-            # DH public key from attendents
-            case 2:
-                pass
-            # shared AES secrets over DH exchanged key
-            case 3:
-                pass
-            # normal message over AES
-            case 4:
-                pass
-
-    def process_incoming_from_queue(self):
-        print(f"Relaying message {self} to {self.to.addr}")
-        match self.type_byte:
-            # login request
-            case 0:
-                pass
-            # DH public key from host
-            case 1:
-                pass
-            # DH public key from attendents
-            case 2:
-                pass
-            # shared AES secrets over DH exchanged key
-            case 3:
-                pass
-            # normal message over AES
-            case 4:
-                self.to.write_buffer = self.content
+    def dispatch(self, raw: bytes, sender: connection.Connection):
+        if not raw:
+            raise message.ProtocolError("empty frame")
+        message_class = MESSAGE_TYPES.get(raw[0])
+        if message_class is None:
+            raise message.ProtocolError(f"unknown or unsupported type byte {raw[0]}")
+        message_class(raw[1:], sender).dispatch(self.handler)

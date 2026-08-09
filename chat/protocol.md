@@ -27,9 +27,17 @@ This byte is reserved to indicate meta data about this message; right now, here 
 |room build request|7|
 |room list request|8|
 
-0: type_byte + room_name + ',' + password.;
-5: what follows the first byte is a comma delimited string name for chat room name (unauth messages will be ignored)
-6: has additional info whether to amke room public thru room list request
+### Implemented payloads (types 1-5 and 8 are reserved, not implemented yet)
+
+0 (room login request): `room_name + ',' + password`
+
+7 (room build request): same payload as type 0; creates the room and admits the creator.
+
+The server answers a type 0/7 request with a frame of the same type byte whose
+payload is `ok,room_name` or `fail,reason`.
+
+6 (normal message): `room_name + ',' + text`; relayed to every other member of
+that room (unauth messages will be ignored).
 
 
 ## Auth
